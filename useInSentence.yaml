@@ -1,0 +1,17 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: Use in a sentence.
+Resources:
+  recommendRestaurantByCuisine:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: index.handler
+      Runtime: nodejs4.3
+      CodeUri: .
+      Description: Use a word in a sentence.
+      MemorySize: 128
+      Timeout: 3
+      Role: 'arn:aws:iam::896896634563:role/service-role/manager'
+      Events:
+        AlexaSkillEvent:
+          Type: AlexaSkill
