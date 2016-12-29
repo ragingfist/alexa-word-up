@@ -1,3 +1,4 @@
+UseInSentenceIntent the word is {word}
 UseInSentenceIntent use {word} in a sentence
 
 AnotherExampleIntent another one

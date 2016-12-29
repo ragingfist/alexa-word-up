@@ -1,5 +1,7 @@
 'use strict';
 
+const axios = require('axios');
+
 /**
  * This sample demonstrates a simple skill built with the Amazon Alexa Skills Kit.
  * The Intent Schema, Custom Slots, and Sample Utterances for this skill, as well as
@@ -48,11 +50,10 @@ function getWelcomeResponse(callback) {
     // If we wanted to initialize the session to have some attributes we could add those here.
     const sessionAttributes = {};
     const cardTitle = 'Use a word in a sentence';
-    const speechOutput = "What is the word that you want to use in a sentence?";
+    const speechOutput = "What's the word?";
     // If the user either does not reply to the welcome message or says something that is not
     // understood, they will be prompted again with this text.
-    const repromptText = 'Please tell me the word you want to use in a sentence by saying, ' +
-        'use hello in a sentence.';
+    const repromptText = "What's the word you want to use in a sentence by saying, use hello in a sentence.";
     const shouldEndSession = false;
 
     callback(sessionAttributes,
@@ -68,65 +69,76 @@ function handleSessionEndRequest(callback) {
     callback({}, buildSpeechletResponse(cardTitle, speechOutput, null, shouldEndSession));
 }
 
-function createFavoriteColorAttributes(favoriteColor) {
-    return {
-        favoriteColor,
-    };
+function getSentences(word) {
+    // return axios.get(`https://www.vocabulary.com/dictionary/${word}`);
+    return Promise.resolve([`I like to ${word}.`, `I think ${word} is cool.`, `We should ${word}.`]);
 }
 
 /**
- * Sets the color in the session and prepares the speech to reply to the user.
+ * Sets the word in the session and prepares the speech to reply to the user.
  */
-function setColorInSession(intent, session, callback) {
+function setWordInSession(intent, session, callback) {
     const cardTitle = intent.name;
-    const favoriteColorSlot = intent.slots.Color;
+    const wordSlot = intent.slots.word;
     let repromptText = '';
     let sessionAttributes = {};
     const shouldEndSession = false;
     let speechOutput = '';
 
-    if (favoriteColorSlot) {
-        const favoriteColor = favoriteColorSlot.value;
-        sessionAttributes = createFavoriteColorAttributes(favoriteColor);
-        speechOutput = `I now know your favorite color is ${favoriteColor}. You can ask me ` +
-            "your favorite color by saying, what's my favorite color?";
-        repromptText = "You can ask me your favorite color by saying, what's my favorite color?";
+    if (wordSlot) {
+        const word = wordSlot.value;
+        repromptText = "You can say, use hello in a sentence, or the word is hello.";
+        getSentences(word).then(function (sentences) {
+            if (sentences.length > 0) {
+                sessionAttributes = {
+                    index: 0,
+                    word, 
+                    sentences
+                };
+                speechOutput = `Here is an example usage for ${word}. ${sentences[0]}`;
+            } else {
+                speechOutput = `I couldn't find any example usages for ${word}. Try another word.`;
+            }
+            callback(sessionAttributes,
+                buildSpeechletResponse(cardTitle, speechOutput, repromptText, shouldEndSession));        
+        }).catch(function (error) {
+            speechOutput = "I'm not sure what the word is. Please try again.";
+            repromptText = "You can say, use hello in a sentence, or the word is hello.";
+            callback(sessionAttributes,
+                buildSpeechletResponse(cardTitle, speechOutput, repromptText, shouldEndSession));    
+        });
     } else {
-        speechOutput = "I'm not sure what your favorite color is. Please try again.";
-        repromptText = "I'm not sure what your favorite color is. You can tell me your " +
-            'favorite color by saying, my favorite color is red';
+        speechOutput = "I'm not sure what the word is. Please try again.";
+        repromptText = "You can say, use hello in a sentence, or the word is hello.";
+        callback(sessionAttributes,
+            buildSpeechletResponse(cardTitle, speechOutput, repromptText, shouldEndSession));
     }
-
-    callback(sessionAttributes,
-         buildSpeechletResponse(cardTitle, speechOutput, repromptText, shouldEndSession));
 }
 
-function getColorFromSession(intent, session, callback) {
-    let favoriteColor;
+function getSentenceFromSession(intent, session, callback) {
+    let index, sentences, word;
     const repromptText = null;
     const sessionAttributes = {};
-    let shouldEndSession = false;
     let speechOutput = '';
 
     if (session.attributes) {
-        favoriteColor = session.attributes.favoriteColor;
+        word = session.attributes.word;
+        sentences = session.attributes.sentences;
+        index = session.attributes.index;
     }
 
-    if (favoriteColor) {
-        speechOutput = `Your favorite color is ${favoriteColor}. Goodbye.`;
-        shouldEndSession = true;
+    if (sentences) {
+        speechOutput = `Here is another example usage for the word ${word}. ${sentences[0]}.`;
     } else {
-        speechOutput = "I'm not sure what your favorite color is, you can say, my favorite color " +
-            ' is red';
+        speechOutput = "I'm not sure what the word is. You can say, use hello in a sentence, or the word is hello.";
     }
 
     // Setting repromptText to null signifies that we do not want to reprompt the user.
     // If the user does not respond or says something that is not understood, the session
     // will end.
     callback(sessionAttributes,
-         buildSpeechletResponse(intent.name, speechOutput, repromptText, shouldEndSession));
+         buildSpeechletResponse(intent.name, speechOutput, repromptText, false));
 }
-
 
 // --------------- Events -----------------------
 
@@ -157,10 +169,10 @@ function onIntent(intentRequest, session, callback) {
     const intentName = intentRequest.intent.name;
 
     // Dispatch to your skill's intent handlers
-    if (intentName === 'MyColorIsIntent') {
-        setColorInSession(intent, session, callback);
-    } else if (intentName === 'WhatsMyColorIntent') {
-        getColorFromSession(intent, session, callback);
+    if (intentName === 'AnotherExampleIntent') {
+        getSentenceFromSession(intent, session, callback);
+    } else if (intentName === 'UseInSentenceIntent') {
+        setWordInSession(intent, session, callback);
     } else if (intentName === 'AMAZON.HelpIntent') {
         getWelcomeResponse(callback);
     } else if (intentName === 'AMAZON.StopIntent' || intentName === 'AMAZON.CancelIntent') {
