@@ -1,6 +1,7 @@
 'use strict';
 
 const axios = require('axios');
+const getSentencesFromWeb = require('./get-sentences');
 
 /**
  * This sample demonstrates a simple skill built with the Amazon Alexa Skills Kit.
@@ -46,23 +47,23 @@ function buildResponse(sessionAttributes, speechletResponse) {
 
 // --------------- Functions that control the skill's behavior -----------------------
 
-function getWelcomeResponse(callback) {
+function handleHelp(callback) {
     // If we wanted to initialize the session to have some attributes we could add those here.
     const sessionAttributes = {};
-    const cardTitle = 'Use a word in a sentence';
+    const cardTitle = 'Word Up';
     const speechOutput = "What's the word?";
     // If the user either does not reply to the welcome message or says something that is not
     // understood, they will be prompted again with this text.
-    const repromptText = "What's the word you want to use in a sentence by saying, use hello in a sentence.";
+    const repromptText = "Say a word you want to use in a sentence by saying, use hello in a sentence.";
     const shouldEndSession = false;
 
     callback(sessionAttributes,
         buildSpeechletResponse(cardTitle, speechOutput, repromptText, shouldEndSession));
 }
 
-function handleSessionEndRequest(callback) {
+function handleStop(callback) {
     const cardTitle = 'Session Ended';
-    const speechOutput = 'Thank you for using Sentence. Have a nice day!';
+    const speechOutput = 'Thank you for using Word Up. We out!';
     // Setting this to true ends the session and exits the skill.
     const shouldEndSession = true;
 
@@ -71,23 +72,23 @@ function handleSessionEndRequest(callback) {
 
 function getSentences(word) {
     // return axios.get(`https://www.vocabulary.com/dictionary/${word}`);
-    return Promise.resolve([`I like to ${word}.`, `I think ${word} is cool.`, `We should ${word}.`]);
+    // return Promise.resolve([`I like to ${word}.`, `I think ${word} is cool.`, `We should ${word}.`]);
+    return getSentencesFromWeb(word);
 }
 
 /**
  * Sets the word in the session and prepares the speech to reply to the user.
  */
-function setWordInSession(intent, session, callback) {
-    const cardTitle = intent.name;
+function handleUseInSentenceIntent(intent, session, callback) {
     const wordSlot = intent.slots.word;
-    let repromptText = '';
-    let sessionAttributes = {};
+    const reprompt = "What's the word?";
     const shouldEndSession = false;
+    const cardTitle = intent.name;
     let speechOutput = '';
-
+    let sessionAttributes = {};
+    
     if (wordSlot) {
         const word = wordSlot.value;
-        repromptText = "You can say, use hello in a sentence, or the word is hello.";
         getSentences(word).then(function (sentences) {
             if (sentences.length > 0) {
                 sessionAttributes = {
@@ -97,47 +98,51 @@ function setWordInSession(intent, session, callback) {
                 };
                 speechOutput = `Here is an example usage for ${word}. ${sentences[0]}`;
             } else {
-                speechOutput = `I couldn't find any example usages for ${word}. Try another word.`;
+                speechOutput = `I couldn't find any examples for ${word}. Try another word.`;
             }
             callback(sessionAttributes,
-                buildSpeechletResponse(cardTitle, speechOutput, repromptText, shouldEndSession));        
+                buildSpeechletResponse(cardTitle, speechOutput, reprompt, shouldEndSession));        
         }).catch(function (error) {
-            speechOutput = "I'm not sure what the word is. Please try again.";
-            repromptText = "You can say, use hello in a sentence, or the word is hello.";
+            speechOutput = `I'm having trouble find any examples for ${word}. Try another word.`;
             callback(sessionAttributes,
-                buildSpeechletResponse(cardTitle, speechOutput, repromptText, shouldEndSession));    
+                buildSpeechletResponse(cardTitle, speechOutput, reprompt, shouldEndSession));    
         });
     } else {
-        speechOutput = "I'm not sure what the word is. Please try again.";
-        repromptText = "You can say, use hello in a sentence, or the word is hello.";
+        speechOutput = "Say what? Tell me again.";
         callback(sessionAttributes,
-            buildSpeechletResponse(cardTitle, speechOutput, repromptText, shouldEndSession));
+            buildSpeechletResponse(cardTitle, speechOutput, reprompt, shouldEndSession));
     }
 }
 
-function getSentenceFromSession(intent, session, callback) {
+function handleAnotherExampleIntent(intent, session, callback) {
     let index, sentences, word;
-    const repromptText = null;
-    const sessionAttributes = {};
+    const sessionAttributes = session.attributes;
+    let shouldEndSession = false;
     let speechOutput = '';
+    let reprompt = '';
 
-    if (session.attributes) {
-        word = session.attributes.word;
-        sentences = session.attributes.sentences;
-        index = session.attributes.index;
+    if (sessionAttributes) {
+        word = sessionAttributes.word;
+        sentences = sessionAttributes.sentences;
+        index = sessionAttributes.index;
     }
 
-    if (sentences) {
-        speechOutput = `Here is another example usage for the word ${word}. ${sentences[0]}.`;
+    if (sentences && sentences[index+1]) {
+        let sentence = sentences[index+1];
+        speechOutput = `Here is another example usage for the word ${word}. ${sentence}.`;    
+        reprompt = 'Another one?';
+        sessionAttributes.index++;
     } else {
-        speechOutput = "I'm not sure what the word is. You can say, use hello in a sentence, or the word is hello.";
+        speechOutput = "There are no more examples. Goodbye.";
+        reprompt = "What's the word?";
+        shouldEndSession = true;
     }
 
     // Setting repromptText to null signifies that we do not want to reprompt the user.
     // If the user does not respond or says something that is not understood, the session
     // will end.
     callback(sessionAttributes,
-         buildSpeechletResponse(intent.name, speechOutput, repromptText, false));
+         buildSpeechletResponse(intent.name, speechOutput, reprompt, shouldEndSession));
 }
 
 // --------------- Events -----------------------
@@ -156,7 +161,7 @@ function onLaunch(launchRequest, session, callback) {
     console.log(`onLaunch requestId=${launchRequest.requestId}, sessionId=${session.sessionId}`);
 
     // Dispatch to your skill's launch.
-    getWelcomeResponse(callback);
+    handleHelp(callback);
 }
 
 /**
@@ -170,13 +175,13 @@ function onIntent(intentRequest, session, callback) {
 
     // Dispatch to your skill's intent handlers
     if (intentName === 'AnotherExampleIntent') {
-        getSentenceFromSession(intent, session, callback);
+        handleAnotherExampleIntent(intent, session, callback);
     } else if (intentName === 'UseInSentenceIntent') {
-        setWordInSession(intent, session, callback);
+        handleUseInSentenceIntent(intent, session, callback);
     } else if (intentName === 'AMAZON.HelpIntent') {
-        getWelcomeResponse(callback);
+        handleHelp(callback);
     } else if (intentName === 'AMAZON.StopIntent' || intentName === 'AMAZON.CancelIntent') {
-        handleSessionEndRequest(callback);
+        handleStop(callback);
     } else {
         throw new Error('Invalid intent');
     }

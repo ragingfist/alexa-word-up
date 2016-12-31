@@ -2,9 +2,10 @@
   "name": "use-in-a-sentence",
   "version": "1.0.0",
   "description": "Use a word in a sentence",
-  "main": "useInSentence.js",
+  "main": "index.js",
   "dependencies": {
-    "axios": "^0.15.3"
+    "axios": "^0.15.3",
+    "cheerio": "^0.22.0"
   },
   "devDependencies": {},
   "scripts": {
